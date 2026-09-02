@@ -11,12 +11,9 @@ import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonTextReader;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonReaderBuilder;
-import com.amazon.ion.util.IonStreamUtils;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
-import java.util.zip.GZIPInputStream;
 
 /**
  * NOT FOR APPLICATION USE!
@@ -205,34 +202,24 @@ public final class _Private_IonReaderFactory
     //  helper functions
     //
 
+    // Invariant: these helpers must not detect or decompress any wrapper format, GZIP included.
+    // Unwrapping belongs exclusively to the InputStreamInterceptor list applied in
+    // _Private_IonReaderBuilder.buildReader. Input that no interceptor claims, and that is not
+    // binary Ion, is routed here as a fallback, so any decompression added below would sit outside
+    // the interceptor list and therefore outside the builder configuration that governs it.
+
     private static UnifiedInputStreamX makeUnifiedStream(byte[] bytes,
                                                          int offset,
                                                          int length)
         throws IOException
     {
-        UnifiedInputStreamX uis;
-        if (IonStreamUtils.isGzip(bytes, offset, length))
-        {
-            ByteArrayInputStream baos =
-                new ByteArrayInputStream(bytes, offset, length);
-            GZIPInputStream gzip = new GZIPInputStream(baos);
-            uis = UnifiedInputStreamX.makeStream(gzip);
-        }
-        else
-        {
-            uis = UnifiedInputStreamX.makeStream(bytes, offset, length);
-        }
-        return uis;
+        return UnifiedInputStreamX.makeStream(bytes, offset, length);
     }
 
     private static UnifiedInputStreamX makeUnifiedStream(InputStream in)
         throws IOException
     {
         in.getClass(); // Force NPE
-
-        // TODO avoid multiple wrapping streams, use the UIS for the pushback
-        in = IonStreamUtils.unGzip(in);
-        UnifiedInputStreamX uis = UnifiedInputStreamX.makeStream(in);
-        return uis;
+        return UnifiedInputStreamX.makeStream(in);
     }
 }
